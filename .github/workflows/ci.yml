@@ -90,7 +90,7 @@ jobs:
       - name: Load Docker image
         run: docker load < image.tar.gz
 
-      - run: test/run_tests.sh
+      - run: sh test/run_tests.sh
         env:
           IMAGE_TAG: ${{env.TEST_IMAGE_NAME}}
           B2_BUCKET: brpaz-b2-pg-backup-ci
