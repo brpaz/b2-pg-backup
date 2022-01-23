@@ -93,6 +93,9 @@ jobs:
       - run: test/run_tests.sh
         env:
           IMAGE_TAG: ${{env.TEST_IMAGE_NAME}}
+          B2_BUCKET: brpaz-b2-pg-backup-ci
+          B2_APPLICATION_KEY_ID: ${{secrets.B2_APPLICATION_KEY_ID}}
+          B2_APPLICATION_KEY: ${{secrets.B2_APPLICATION_KEY}}
 
   security-scan:
     name: "Security scan"
