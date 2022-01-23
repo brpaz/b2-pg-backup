@@ -1,0 +1,156 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+env:
+  IMAGE_NAME: ${{ github.repository }}
+
+permissions:
+  packages: write
+  contents: write
+  checks: write
+  issues: write
+
+jobs:
+  prepare:
+    name: Prepare environment
+    runs-on: ubuntu-20.04
+    outputs:
+      TEST_IMAGE_NAME: ${{env.IMAGE_NAME}}:${{ steps.short-sha.outputs.sha }}
+      TEST_IMAGE_TAG: ${{ steps.short-sha.outputs.sha }}
+    steps:
+      - uses: benjlevesque/short-sha@v1.2
+        id: short-sha
+
+  lint:
+    name: "Lint Dockerfile"
+    runs-on: ubuntu-20.04
+    needs: prepare
+    steps:
+      - uses: actions/checkout@v2
+      - uses: hadolint/hadolint-action@v1.6.0
+
+  build:
+    name: "Build and Test"
+    runs-on: ubuntu-latest
+    needs: [prepare, lint]
+    env:
+      TEST_IMAGE_NAME: ${{ needs.prepare.outputs.TEST_IMAGE_NAME }}
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Get current date
+        id: date
+        run: echo "::set-output name=date::$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+
+      - name: Build Docker Image
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          push: false
+          build-args: |
+            BUILD_DATE=${{ steps.date.outputs.date }}
+            VCS_REF=${{ github.sha }}
+          tags: ${{ env.TEST_IMAGE_NAME }}
+
+      - name: Container Structure test
+        uses: brpaz/structure-tests-action@master
+        with:
+          image: ${{ env.TEST_IMAGE_NAME }}
+
+      - name: Crate image artifact
+        run: docker save -o image.tar.gz $TEST_IMAGE_NAME
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: image
+          path: image.tar.gz
+
+  integration_tests:
+    name: "Integration tests"
+    runs-on: ubuntu-latest
+    needs: [prepare, build]
+    env:
+      TEST_IMAGE_NAME: ${{ needs.prepare.outputs.TEST_IMAGE_NAME }}
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Download image artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: image
+
+      - name: Load Docker image
+        run: docker load < image.tar.gz
+
+      - run: test/run_tests.sh
+        env:
+          IMAGE_TAG: ${{env.TEST_IMAGE_NAME}}
+
+  security-scan:
+    name: "Security scan"
+    runs-on: ubuntu-latest
+    needs: [prepare, build]
+    env:
+      TEST_IMAGE_NAME: ${{ needs.prepare.outputs.TEST_IMAGE_NAME }}
+    steps:
+      - name: Download image artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: image
+      - name: Load Docker image
+        run: docker load < image.tar.gz
+
+      - uses: azure/container-scan@v0
+        with:
+          image-name: ${{ env.TEST_IMAGE_NAME }}
+
+  publish:
+    name: "Publish Release"
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-20.04
+    needs: [prepare, security-scan, build]
+    env:
+      TEST_IMAGE_NAME: ${{ needs.prepare.outputs.TEST_IMAGE_NAME }}
+      TEST_IMAGE_TAG: ${{ needs.prepare.outputs.TEST_IMAGE_TAG }}
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Download image artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: image
+
+      - name: Load Docker image
+        run: docker load < image.tar.gz
+
+      - run: docker image ls
+
+      - name: Release
+        uses: cycjimmy/semantic-release-action@v2
+        with:
+          extra_plugins: |
+            @eclass/semantic-release-docker
+            @semantic-release/git
+            @semantic-release/changelog
+        env:
+          DOCKER_IMAGE_NAME: ${{ env.TEST_IMAGE_NAME }}
+          DOCKER_IMAGE_TAG: ${{ env.TEST_IMAGE_TAG }}
+          GITHUB_USER: ${{ secrets.GHCR_USER }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCKER_USER: ${{ secrets.DOCKERHUB_USER }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      - name: Update Docker Hub Description
+        uses: peter-evans/dockerhub-description@v2
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USER }}
+          DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+          DOCKERHUB_REPOSITORY: ${{ env.IMAGE_NAME }}

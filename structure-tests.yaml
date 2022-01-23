@@ -1,0 +1,11 @@
+schemaVersion: 2.0.0
+commandTests:
+  - name: "Backbalze cli Is installed"
+    command: b2
+    args: ["version"]
+    exitCode: 0
+
+  - name: "PG Dump is installed"
+    command: pg_dump
+    args: ["--version"]
+    exitCode: 0

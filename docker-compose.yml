@@ -1,0 +1,24 @@
+
+version: '3.7'
+
+services:
+  pgdb:
+    image: postgres:14
+    environment:
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pgbackup:
+   build:
+    context: .
+   env_file: .env
+   command:  ["tail", "-f", "/dev/null"]
+   volumes:
+     -  ./backup.sh:/usr/local/bin/backup.sh
+   depends_on:
+    - pgdb
