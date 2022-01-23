@@ -2,7 +2,6 @@
 # Runs Integration tests
 
 set -e
-set -o pipefail
 
 if [[ -z "${IMAGE_TAG}" ]];
 then
