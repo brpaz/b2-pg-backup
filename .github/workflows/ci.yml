@@ -90,7 +90,8 @@ jobs:
       - name: Load Docker image
         run: docker load < image.tar.gz
 
-      - run: sh test/run_tests.sh
+      - name: Run Tests
+        run: sh test/run_tests.sh
         env:
           IMAGE_TAG: ${{env.TEST_IMAGE_NAME}}
           B2_BUCKET: brpaz-b2-pg-backup-ci
@@ -137,7 +138,7 @@ jobs:
       - run: docker image ls
 
       - name: Release
-        uses: cycjimmy/semantic-release-action@v2
+        uses: cycjimmy/semantic-release-action@v2.7.0
         with:
           extra_plugins: |
             @eclass/semantic-release-docker
