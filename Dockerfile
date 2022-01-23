@@ -5,9 +5,9 @@ ARG VCS_REF
 ARG BUILD_VERSION
 ARG B2_CLI_VERSION="v3.2.0"
 
-RUN apk add --no-cache curl gzip postgresql14-client
 
-RUN curl -LO https://github.com/Backblaze/B2_Command_Line_Tool/releases/download/${B2_CLI_VERSION}/b2-linux && \
+RUN apk add --no-cache curl gzip postgresql14-client && \
+    curl -LO https://github.com/Backblaze/B2_Command_Line_Tool/releases/download/${B2_CLI_VERSION}/b2-linux && \
     chmod +x b2-linux && \
     mv b2-linux /usr/local/bin/b2 && \
     b2 version
